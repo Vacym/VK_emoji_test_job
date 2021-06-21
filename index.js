@@ -130,6 +130,31 @@ class EmojiContainer {
 
     console.log(event);
 
+    if (!event.path) { // For Mozila Firefox
+      event.path = {target: event.target};
+
+      event.path[Symbol.iterator] = function() {
+        console.log('iterator', this)
+        return {
+          current: this.target,
+          nextCurrent: null,
+
+          next() {
+            console.log(this)
+            if (this.current == window)
+            return {done: false};
+
+            this.current = this.nextCurrent || this.current;
+            this.nextCurrent = this.current.parentNode || window;
+
+            return {
+              done: Boolean(!this.current), value: this.current
+            };
+          }
+        };
+      };
+    }
+
 
     for (const element of event.path) { // Перебираем путь нажатия
       // Если document,
