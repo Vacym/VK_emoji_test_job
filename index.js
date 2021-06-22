@@ -1,4 +1,4 @@
-const LENGTH_HISTYORY = 25; // Максимальная длина истории смайликов
+const LENGTH_HISTYORY = 30; // Максимальная длина истории смайликов
 
 
 class EmojiContainer {
@@ -8,49 +8,36 @@ class EmojiContainer {
 
     this.container    = container; // Контейнер
     this.emojis       = emojis;    // Эмодзи
-    this.emojiHistory = [];        // История эмодзи
+    this.emojiHistory = localStorage.getItem('emojiHistory'); // История эмодзи
 
+    try {
+      this.emojiHistory = JSON.parse(this.emojiHistory);
+      if(!Array.isArray(this.emojiHistory)) this.emojiHistory = [];
+    } catch (e) {
+      console.log(e);
+      this.emojiHistory = [];
+    }
+
+    
     // Показывается ли окно в данный момент
     this.show = false;
     
   }
 
-  buildEmojis() { // Построение полотна из смайликов
+  buildEmojis() { // Генерация основы под смайлики
     // Поле для всех смайликов
     let field = document.createElement('div');
     field.className = 'smiles-field show';
     field.id = 'fieldAll';
 
 
-    // Рисуем каждую категорию
-    for (const section of this.emojis) {
-
-      // Заголовок категории
-      field.innerHTML += `
-        <span class="section-title">${section.title}</span>
-      `;
-      
-      let smileSection = document.createElement('div');
-      smileSection.className = 'smile-section';
-
-      for (const emoji of section.items) {
-        let buttonContainer = document.createElement('div');
-        buttonContainer.className = 'button-container-small';
-        // buttonContainer.innerHTML = `<button>${emoji}</button>`;
-
-        let link = LINKS[emoji];
-
-        buttonContainer.innerHTML = `<img src="${link}" alt="${emoji}"></img>`;
-
-        smileSection.append(buttonContainer);
-
-      }
-      field.append(smileSection);
-    }
-
 
     // Добавляем получившееся поле смайликов
     this.container.append(field);
+    this.field = field;
+    console.log([field])
+    console.log(field == document.querySelector('#fieldAll'))
+    this.loadScrolling();
 
 
     // Раздел с последними смайликами
@@ -64,20 +51,24 @@ class EmojiContainer {
     `);
 
     this.container.append(fieldHistory);
+    this.updateHistory();
 
 
 
     // Bottom button bar
-    this.container.innerHTML += `
-      <div class="bottom-bar">
-        <div class="button-container active" field="fieldAll">
-          <button id="smile-bar"></button>
-        </div>
-        <div class="button-container" field="fieldHistory">
-          <button id="clock-bar"></button>
-        </div>
+    let buttomBar = document.createElement('div');
+    buttomBar.className = 'bottom-bar';
+
+    buttomBar.innerHTML = `
+      <div class="button-container active" field="fieldAll">
+        <button id="smile-bar"></button>
+      </div>
+      <div class="button-container" field="fieldHistory">
+        <button id="clock-bar"></button>
       </div>
     `;
+
+    this.container.append(buttomBar);
 
     // Кнопки переключения всех смайликов и недавних
     const toggles = document.querySelectorAll('.bottom-bar .button-container');
@@ -88,6 +79,53 @@ class EmojiContainer {
         toggle.classList.contains('active')
       ));
     }
+  }
+
+  loadScrolling() {// Построение полотна из смайликов по прокрутке
+    const loadNewSection = () => {
+      if (field.scrollHeight - field.scrollTop - field.clientHeight > 100) return;
+
+      
+      // Рисуем каждую категорию
+
+      const iter = iterator.next();
+      if (iter.done) {
+        field.removeEventListener('scroll', loadNewSection);
+        return;
+      }
+
+      const section = iter.value;
+
+      // Заголовок категории
+      field.innerHTML += `
+        <span class="section-title">${section.title}</span>
+      `;
+      
+      const smileSection = document.createElement('div');
+      smileSection.className = 'smile-section';
+
+      for (const emoji of section.items) {
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'button-container-small';
+
+        const link = LINKS[emoji];
+        buttonContainer.innerHTML = `<img src="${link}" alt="${emoji}"></img>`;
+
+        smileSection.append(buttonContainer);
+
+      }
+      field.append(smileSection);
+    };
+
+
+    const field = document.querySelector('#fieldAll');
+    console.log([field])
+    const iterator = this.emojis[Symbol.iterator]();
+
+
+    loadNewSection();
+
+    field.addEventListener('scroll', loadNewSection);
   }
 
   toggleField(showField, active) { // Переключение разделов эмодзи
@@ -134,13 +172,11 @@ class EmojiContainer {
       event.path = {target: event.target};
 
       event.path[Symbol.iterator] = function() {
-        console.log('iterator', this)
         return {
           current: this.target,
           nextCurrent: null,
 
           next() {
-            console.log(this)
             if (this.current == window)
             return {done: false};
 
@@ -245,6 +281,7 @@ class EmojiContainer {
         </div>
       `);
     }
+    localStorage.setItem('emojiHistory', JSON.stringify(this.emojiHistory));
   }
 }
 
