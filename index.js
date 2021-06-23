@@ -203,7 +203,7 @@ class EmojiContainer {
       // Если кнопка появления/исчесзновения смайликов
       // ничего не делаем
       // Кнопка сделает всё сама
-      else if (element.id == "smile-icon") return;
+      else if (element.id == 'smile-icon') return;
 
       // Если нажатие внутри контейнера,
       // продолжаем обработку нажатия
@@ -211,17 +211,22 @@ class EmojiContainer {
     }
 
     if (
-      event.target.nodeName == "BUTTON" &&
+      event.target.nodeName == 'BUTTON' &&
       event.target.parentElement.classList.contains('button-container-small')
       ) {
       this.addSmile(event.target.innerText);
     }
     else if (
       // Если нажали на смайл
-      event.target.nodeName == "IMG" &&
+      event.target.nodeName == 'IMG' &&
       event.target.parentElement.classList.contains('button-container-small')
       ) {
       this.addSmile(event.target.alt);
+    } else if (
+      event.target.classList.contains('button-container-small') &&
+      event.target.firstElementChild.nodeName == 'IMG'
+    ) {
+      this.addSmile(event.target.firstElementChild.alt);
     }
 
     // Возобновляем прослушку
@@ -319,27 +324,23 @@ class Input {
 
       if (node.nodeName == '#text') {
         let text = node.nodeValue;
-        let newText = '';
+        let parts = splitEmojis(text);
 
-        for (const letter of text) {
-          const link = LINKS[letter];
-
-          if (link) {
-            if (newText) adding.push(document.createTextNode(newText));
-            newText = '';
+        for (let p = 0; p < parts.length; p++) {
+          if (p%2) { // Emoji
 
             let smile = document.createElement('img');
             smile.className = 'emoji';
-            smile.alt = letter;
-            smile.src = link;
+            smile.alt = parts[p];
+            smile.src = LINKS[parts[p]];
             
             adding.push(smile);
-          } else {
-            newText += letter;
+
+          } else { // Text
+            if (parts[p])
+            adding.push(document.createTextNode(parts[p]));
           }
         }
-
-        if (newText) adding.push(document.createTextNode(newText));
       }
       else if(node.nodeName == 'IMG') {
         if(LINKS[node.alt]) {
@@ -399,6 +400,7 @@ class Input {
 
       let newNodes = formatPart(node);
 
+      if (newNodes.length)
       if (newNodes.length > 1 || newNodes[0].nodeName != node.nodeName) {
         changes[nodeNumber] = newNodes;
       }
@@ -416,7 +418,6 @@ class Input {
 
       // Восстановление позиции курсора
       let range = window.getSelection().getRangeAt(0);
-      range.deleteContents();
       range.setStart(target, x + changes[x].length);
       range.setEnd(target, x + changes[x].length);
     }
@@ -453,7 +454,26 @@ class Input {
   }
 }
 
+function splitEmojis(text) {
+  let answer = [];
 
+  let lengthEmoji = Math.min(text.length, 11);
+
+  for (lengthEmoji; lengthEmoji > 0; lengthEmoji--) {
+    for (let x = 0; x <= text.length - lengthEmoji; x++) {
+      let smile = text.slice(x, x+lengthEmoji);
+      let link = LINKS[smile];
+
+      if (link) {
+        answer.push(...splitEmojis(text.slice(0, x)));
+        answer.push(smile);
+        answer.push(...splitEmojis(text.slice(x+lengthEmoji)));
+        return answer;
+      }
+    }
+  }
+  return [text];
+}
 
 
 
