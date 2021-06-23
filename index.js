@@ -6,6 +6,7 @@ class EmojiContainer {
     this.container    = container; // Контейнер
     this.emojis       = emojis;    // Эмодзи
     this.emojiHistory = localStorage.getItem('emojiHistory'); // История эмодзи
+    this.lastHistory  = []; // Последняя обновлённая история
 
     try {
       this.emojiHistory = JSON.parse(this.emojiHistory);
@@ -127,6 +128,9 @@ class EmojiContainer {
     // Если кнопка уже активна
     if (active) return;
 
+    if (showField == 'fieldHistory')
+    this.updateHistory();
+
     this.container.querySelector('.smiles-field.show').classList.remove('show');
     this.container.querySelector('.smiles-field#' + showField).classList.add('show');
 
@@ -150,6 +154,8 @@ class EmojiContainer {
     console.log('show');
     this.show = true;
     this.container.classList.add('show');
+
+    this.updateHistory();
 
     document.addEventListener('mousedown', this.decisionToClick.bind(this), {once: true});
   }
@@ -191,7 +197,7 @@ class EmojiContainer {
       // значит нажали не на контейнер смайликов,
       // значит его нужно убрать
       if (element == document) {
-        slip(this);
+        slip();
         return;
       }
       // Если кнопка появления/исчесзновения смайликов
@@ -259,11 +265,19 @@ class EmojiContainer {
     }
     
     this.emojiHistory.unshift(emoji);
-    console.log(this.emojiHistory);
+
+    if (document.querySelector('.button-container.active:not([field="fieldHistory"])'))
     this.updateHistory();
   }
 
   updateHistory() { // Обновление окна недвних смайликов
+    // Если смайлики не изменились, то и отрисовывать их нет смысла
+    if (
+      this.emojiHistory.length == this.lastHistory.length &&
+      this.emojiHistory.every((value, index) => value === this.lastHistory[index]))
+    return;
+
+    this.lastHistory = [...this.emojiHistory];
     let section = this.container.querySelector('#fieldHistory .smile-section');
 
     section.innerHTML = '';
