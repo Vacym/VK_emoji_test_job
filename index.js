@@ -8,6 +8,8 @@ class EmojiContainer {
     this.emojiHistory = localStorage.getItem('emojiHistory'); // История эмодзи
     this.lastHistory  = []; // Последняя обновлённая история
 
+    this.bindDecisionToClick = this.decisionToClick.bind(this)
+
     try {
       this.emojiHistory = JSON.parse(this.emojiHistory);
       if(!Array.isArray(this.emojiHistory)) this.emojiHistory = [];
@@ -57,10 +59,10 @@ class EmojiContainer {
 
     buttomBar.innerHTML = `
       <div class="button-container active" field="fieldAll">
-        <button id="smile-bar"></button>
+        <button tabindex="-1" id="smile-bar"></button>
       </div>
       <div class="button-container" field="fieldHistory">
-        <button id="clock-bar"></button>
+        <button tabindex="-1" id="clock-bar"></button>
       </div>
     `;
 
@@ -75,6 +77,12 @@ class EmojiContainer {
         toggle.classList.contains('active')
       ));
     }
+
+    addEventListener('keydown', e => {
+      if (e.key != 'Tab' || e.repeat) return;
+      e.preventDefault();
+      this.toggle();
+    });
   }
 
   loadScrolling() {// Построение полотна из смайликов по прокрутке
@@ -148,27 +156,12 @@ class EmojiContainer {
     this.container.style.bottom = (document.documentElement.clientHeight - coord.top + 12) + 'px';
   }
 
-  showing() { // Появление контейнера
-    this.correctCoords();
-
-    console.log('show');
-    this.show = true;
-    this.container.classList.add('show');
-
-    this.updateHistory();
-
-    document.addEventListener('mousedown', this.decisionToClick.bind(this), {once: true});
-  }
-
   decisionToClick(event) { // определение клика мыши
     let slip = () => {
-      document.removeEventListener('mousedown', this.decisionToClick.bind(this));
       this.hiding();
     };
 
-    console.log(event);
-
-    if (!event.path) { // For Mozila Firefox
+    if (!event.path) { // For Firefox
       event.path = {target: event.target};
 
       event.path[Symbol.iterator] = function() {
@@ -210,6 +203,7 @@ class EmojiContainer {
       else if (element.classList.contains('smiles-container')) break;
     }
 
+
     if (
       event.target.nodeName == 'BUTTON' &&
       event.target.parentElement.classList.contains('button-container-small')
@@ -222,22 +216,27 @@ class EmojiContainer {
       event.target.parentElement.classList.contains('button-container-small')
       ) {
       this.addSmile(event.target.alt);
-    } else if (
-      event.target.classList.contains('button-container-small') &&
-      event.target.firstElementChild.nodeName == 'IMG'
-    ) {
-      this.addSmile(event.target.firstElementChild.alt);
     }
 
-    // Возобновляем прослушку
-    document.addEventListener('mousedown', this.decisionToClick.bind(this), {once: true});
 
   }
 
+  showing() { // Появление контейнера
+    this.correctCoords();
+
+    this.show = true;
+    this.container.classList.add('show');
+
+    this.updateHistory();
+
+    document.addEventListener('mousedown', this.bindDecisionToClick);
+  }
+
   hiding() { // Исчезновения контейнера
-    console.log('hide');
     this.show = false;
     this.container.classList.remove('show');
+    
+    document.removeEventListener('mousedown', this.bindDecisionToClick)
   }
 
   toggle(event) { // Переключение видимости контейнера
@@ -247,16 +246,17 @@ class EmojiContainer {
   }
 
   addSmile(smile) { // Добавление смайлика в поле ввода
-    console.log('smile', smile);
-    let textarea = document.querySelector('.chat-input');
-
-    if (textarea.lastChild?textarea.lastChild.nodeName == 'BR':false) textarea.lastChild.remove();
-    textarea.append(smile);
-    
     this.emojiHistoryAdd(smile);
-    this.correctCoords();
+    let textarea = document.querySelector('.chat-input');
     
-    input.formatInput({});
+    if (textarea.lastChild?textarea.lastChild.nodeName == 'BR':false)
+    textarea.lastChild.remove();
+
+
+    input.insertTextAtCaret(smile);
+    
+    
+    this.correctCoords();
   }
 
   emojiHistoryAdd(emoji) { // Добавление смайлика в историю
@@ -271,6 +271,8 @@ class EmojiContainer {
     
     this.emojiHistory.unshift(emoji);
 
+    // Если включены недавние смайликами,
+    // не обновляем
     if (document.querySelector('.button-container.active:not([field="fieldHistory"])'))
     this.updateHistory();
   }
@@ -300,8 +302,8 @@ class EmojiContainer {
 
 
 class Input {
-  constructor(selector) {
-    this.input = document.querySelector(selector);
+  constructor(input) {
+    this.input = input;
     this.input.focus(); // Firefox
 
     this.input.addEventListener('input', this.formatInput.bind(this));
@@ -312,10 +314,6 @@ class Input {
       if (!text) return;
       this.insertTextAtCaret(text);
     });
-  }
-
-  badTags(tag) { // Проверяет наличие плохого тега
-    return !['#text', 'IMG', 'BR'].includes(tag);
   }
 
   formatInput(e){ // Форматирование введённого текста
@@ -341,8 +339,7 @@ class Input {
             adding.push(document.createTextNode(parts[p]));
           }
         }
-      }
-      else if(node.nodeName == 'IMG') {
+      } else if(node.nodeName == 'IMG') {
         if(LINKS[node.alt]) {
           let smile = document.createElement('img');
           smile.src = LINKS[node.alt];
@@ -350,52 +347,33 @@ class Input {
           smile.alt = node.alt;
           
           adding.push(smile);
-        } else {
-          console.log("Невозможно!");
         }
-      }
-      else if (this.badTags(node.nodeName)) {
+      } else if (node.nodeName == 'BR') {
+        adding.push(node);
+      } else {
         
         if(node.nodeName == 'DIV')
-        if (lastNode && lastNode.nodeName != 'BR') {
+        if (
+          nodeNumber && target.childNodes[nodeNumber-1].nodeName != 'BR' &&
+          changes[nodeNumber-1][0] && changes[nodeNumber-1][0].nodeName != 'BR'
+        ) {
           adding.push(document.createElement('br'));
-
-          lastNode = document.createElement('br');
         }
 
         for (let childNode of node.childNodes) {
           adding.push(...formatPart(childNode));
         }
-
-
-      }
-      else if (node.nodeName == 'BR') {
-        adding.push(node);
       }
       
-
-      if(adding && !this.badTags(node.nodeName)){
-        lastNode = node;
-      }
-
-
-
       return adding;
     };
-
-    console.log(e);
-
     
     let target = this.input;
-    console.log([target]);
-  
-    console.log(target.innerHTML);
-    let lastNode = null;
     let changes = {};
+    let nodeNumber = 0;
 
   
-
-    for (let nodeNumber = 0; nodeNumber < target.childNodes.length; nodeNumber++) {
+    for (nodeNumber; nodeNumber < target.childNodes.length; nodeNumber++) {
       const node = target.childNodes[nodeNumber];
 
       let newNodes = formatPart(node);
@@ -404,7 +382,6 @@ class Input {
       if (newNodes.length > 1 || newNodes[0].nodeName != node.nodeName) {
         changes[nodeNumber] = newNodes;
       }
-      
     }
     
     let x = -1;
@@ -418,8 +395,16 @@ class Input {
 
       // Восстановление позиции курсора
       let range = window.getSelection().getRangeAt(0);
-      range.setStart(target, x + changes[x].length);
-      range.setEnd(target, x + changes[x].length);
+
+      if (element.nodeName == 'DIV') {
+        range.setStart(target, x+1);
+        range.setEnd(target, x+1);
+      }
+      else {
+        let sum = x + changes[x].length;
+        range.setStart(target, sum);
+        range.setEnd(target, sum);
+      }
     }
     
     // Удаляем одиночный <br> в конце
@@ -428,6 +413,9 @@ class Input {
     if (tcn.length == 1 || tcn[tcn.length - 2].nodeName != 'BR')
     target.lastChild.remove();
 
+    if (emojis.show) emojis.correctCoords();
+
+    setTimeout(() => target.focus(), 0);
   }
 
 
@@ -439,13 +427,22 @@ class Input {
       if (sel.getRangeAt && sel.rangeCount) {
         let textNode = document.createElement('span');
         textNode.innerText = text;
-        
 
         range = sel.getRangeAt(0);
+
+        if (
+          !(range.commonAncestorContainer == this.input ||
+          range.commonAncestorContainer.parentElement == this.input)
+        ) {
+          range = document.createRange();
+          range.selectNodeContents(this.input);
+          range.collapse();
+        }
+
         range.deleteContents();
         
         range.insertNode( textNode );
-        range.setStart(range.endContainer, range.endOffset);
+        
         this.formatInput({});
       }
     } else if (document.selection && document.selection.createRange) {
@@ -454,7 +451,7 @@ class Input {
   }
 }
 
-function splitEmojis(text) {
+function splitEmojis(text) { // отделение текста от эмодзи
   let answer = [];
 
   let lengthEmoji = Math.min(text.length, 11);
@@ -488,7 +485,7 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   emojis.buildEmojis();
 
-  input = new Input('.chat-input');
+  input = new Input(document.querySelector('.chat-input'));
 
   // Отслеживание клика на смайлик, который открывает смайлики
   document.querySelector('#smile-icon').onclick = (e) => {

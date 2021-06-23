@@ -107,7 +107,7 @@
 #smile-icon {
     flex-shrink: 0;
     background-image: url("style/smile.svg");
-    opacity: 0.7;
+    opacity: 0.85;
 }
 
 #smile-icon:hover {
