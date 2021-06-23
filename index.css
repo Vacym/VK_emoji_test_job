@@ -3,6 +3,16 @@
     font-family: "SF Pro Text";
 }
 
+/* Firefox scrollbar */
+
+* {
+    scrollbar-color: #dae2ea #fff;
+    scrollbar-width: thin;
+}
+
+
+/* No Firefox scrollbar */
+
 ::-webkit-scrollbar-button {
     width: 5px;
     height: 0;
@@ -57,6 +67,7 @@
 
 .chat-input {
     flex-grow: 1;
+    overflow: auto;
     margin: 9px;
     margin-right: 0;
     outline: none;

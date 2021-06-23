@@ -1,11 +1,8 @@
-const LENGTH_HISTYORY = 30; // Максимальная длина истории смайликов
+const LENGTH_HISTORY = 30; // Максимальная длина истории смайликов
 
 
 class EmojiContainer {
   constructor(container, emojis) {
-    console.log(container);
-    console.log(emojis);
-
     this.container    = container; // Контейнер
     this.emojis       = emojis;    // Эмодзи
     this.emojiHistory = localStorage.getItem('emojiHistory'); // История эмодзи
@@ -35,8 +32,6 @@ class EmojiContainer {
     // Добавляем получившееся поле смайликов
     this.container.append(field);
     this.field = field;
-    console.log([field])
-    console.log(field == document.querySelector('#fieldAll'))
     this.loadScrolling();
 
 
@@ -119,7 +114,6 @@ class EmojiContainer {
 
 
     const field = document.querySelector('#fieldAll');
-    console.log([field])
     const iterator = this.emojis[Symbol.iterator]();
 
 
@@ -178,13 +172,13 @@ class EmojiContainer {
 
           next() {
             if (this.current == window)
-            return {done: false};
+            return {done: true};
 
             this.current = this.nextCurrent || this.current;
             this.nextCurrent = this.current.parentNode || window;
 
             return {
-              done: Boolean(!this.current), value: this.current
+              done: false, value: this.current
             };
           }
         };
@@ -257,7 +251,7 @@ class EmojiContainer {
   emojiHistoryAdd(emoji) { // Добавление смайлика в историю
     let index = this.emojiHistory.indexOf(emoji);
 
-    if (index == -1 && this.emojiHistory.length >= LENGTH_HISTYORY) {
+    if (index == -1 && this.emojiHistory.length >= LENGTH_HISTORY) {
       this.emojiHistory.pop();
     }
     else if (index != -1) {
@@ -289,93 +283,84 @@ class EmojiContainer {
 class Input {
   constructor(selector) {
     this.input = document.querySelector(selector);
-    this.text  = '';
-    this.savedSelection = {};
+    this.input.focus(); // Firefox
 
     this.input.addEventListener('input', this.formatInput.bind(this));
+
+    this.input.addEventListener('paste', e => { // Fix входных данных
+      e.preventDefault();
+      let text = e.clipboardData.getData('text');
+      if (!text) return;
+      this.insertTextAtCaret(text);
+    });
   }
 
-  badTags(tag) {
-    return (
-      tag != '#text' &&
-      tag != 'IMG'   &&
-      tag != 'BR'  
-    );
+  badTags(tag) { // Проверяет наличие плохого тега
+    return !['#text', 'IMG', 'BR'].includes(tag);
   }
 
   formatInput(e){ // Форматирование введённого текста
-    const addCounters = (x) => {
-      if (nodeCounter == startCounter) startCounter += x;
-      if (nodeCounter == endCounter)   endCounter   += x;
-      nodeCounter += x;
-    };
-
     const formatPart = (node) => {
-      let adding = null;
-
-      
-      if (node == this.savedSelection.start[0]) startCounter = nodeCounter;
-      if (node == this.savedSelection.end[0])   endCounter   = nodeCounter;
-
+      let adding = [];
 
       if (node.nodeName == '#text') {
-        console.log('TEXT', node.nodeValue);
-        adding = textConverter(node.nodeValue);
-        let link = LINKS[adding];
+        let text = node.nodeValue;
+        let newText = '';
 
-        if (link) {
-          adding = `<img class="emoji" src="${link}" alt="${adding}">`;
-          console.log(adding);
-        } else {
-          if (lastNode && lastNode.nodeName == '#text'){
-            if (nodeCounter == startCounter) 
-            this.savedSelection.start[1] += lastNode.nodeValue.length;
+        for (const letter of text) {
+          const link = LINKS[letter];
 
-            if (nodeCounter == endCounter) 
-            this.savedSelection.end[1]   += lastNode.nodeValue.length;
+          if (link) {
+            if (newText) adding.push(document.createTextNode(newText));
+            newText = '';
 
-            addCounters(-1);
+            let smile = document.createElement('img');
+            smile.className = 'emoji';
+            smile.alt = letter;
+            smile.src = link;
+            
+            adding.push(smile);
+          } else {
+            newText += letter;
           }
         }
 
+        if (newText) adding.push(document.createTextNode(newText));
       }
       else if(node.nodeName == 'IMG') {
         if(LINKS[node.alt]) {
-          adding = `<img class="emoji" src="${LINKS[node.alt]}" alt="${node.alt}">`;
+          let smile = document.createElement('img');
+          smile.src = LINKS[node.alt];
+          smile.className = 'emoji';
+          smile.alt = node.alt;
+          
+          adding.push(smile);
+        } else {
+          console.log("Невозможно!");
         }
       }
       else if (this.badTags(node.nodeName)) {
-        adding = '';
-
-        if(node.nodeName == 'DIV' || node.nodeName == 'P')
+        
+        if(node.nodeName == 'DIV')
         if (lastNode && lastNode.nodeName != 'BR') {
-          adding += '<br>';
-          addCounters(1);
-
-          if (node.nodeName == 'P'){
-            adding += '<br>';
-            addCounters(1);
-          }
+          adding.push(document.createElement('br'));
 
           lastNode = document.createElement('br');
         }
 
         for (let childNode of node.childNodes) {
-          adding += formatPart(childNode);
+          adding.push(...formatPart(childNode));
         }
 
 
       }
       else if (node.nodeName == 'BR') {
-        adding =  '<br>';
+        adding.push(node);
       }
-      else {
-        adding = '';
-      }
+      
 
       if(adding && !this.badTags(node.nodeName)){
         lastNode = node;
-        nodeCounter++;
       }
 
 
@@ -386,123 +371,72 @@ class Input {
     console.log(e);
 
     
-    this.saveSelection();
-    console.log(this.savedSelection);
     let target = this.input;
     console.log([target]);
   
     console.log(target.innerHTML);
     let lastNode = null;
-    let html = '';
-    let carriage = 0;
-    let [nodeCounter, startCounter, endCounter] = [0, -1, -1];
+    let changes = {};
 
   
 
-    for (let bigNode of target.childNodes) {
-      console.log([bigNode]);
+    for (let nodeNumber = 0; nodeNumber < target.childNodes.length; nodeNumber++) {
+      const node = target.childNodes[nodeNumber];
 
-      let newHtml = formatPart(bigNode);
+      let newNodes = formatPart(node);
 
-
-      html += newHtml;
+      if (newNodes.length > 1 || newNodes[0].nodeName != node.nodeName) {
+        changes[nodeNumber] = newNodes;
+      }
+      
     }
     
+    let x = -1;
+    let childNodesClone = [...target.childNodes];
+    for (let element of childNodesClone) {
+      x++;
+
+      if (!changes[x]) continue;
+
+      element.replaceWith(...changes[x]);
+
+      // Восстановление позиции курсора
+      let range = window.getSelection().getRangeAt(0);
+      range.deleteContents();
+      range.setStart(target, x + changes[x].length);
+      range.setEnd(target, x + changes[x].length);
+    }
     
+    // Удаляем одиночный <br> в конце
+    let tcn = target.childNodes;
+    if (tcn.length && target.lastChild.nodeName == 'BR')
+    if (tcn.length == 1 || tcn[tcn.length - 2].nodeName != 'BR')
+    target.lastChild.remove();
 
-    let tempContent = document.createElement('div');
-    tempContent.innerHTML = html;
-
-    let tcn = tempContent.childNodes;
-
-
-
-    if (tcn.length >= 1)
-    if (tempContent.lastChild.nodeName == 'BR')
-    if ((tcn.length >= 2)?(tcn[tcn.length-2].nodeName != 'BR'):true)
-    tempContent.lastChild.remove();
-
-    console.log(tempContent.innerHTML);
-    target.innerHTML = tempContent.innerHTML;
-
-    
-
-    if (startCounter != -1) this.savedSelection.start[0] = target.childNodes[startCounter];
-    if (endCounter   != -1) this.savedSelection.end[0]   = target.childNodes[endCounter];
-
-    console.log(startCounter, endCounter);
-
-    if(this.savedSelection)
-    if (
-      startCounter != -1 || this.savedSelection.start[0] == this.input &&
-      endCounter   != -1 || this.savedSelection.end[0]   == this.input
-    ) this.restoreSelection();
-    
   }
 
 
 
-
-  cloneSelection() {
-    if (window.getSelection().rangeCount < 1) return null;
-    let range = window.getSelection().getRangeAt(0);
-
-    return {
-      start: [range.startContainer, range.startOffset],
-      end: [range.endContainer, range.endOffset],
-    };
-  }
-
-
-  saveSelection() { // Сохраниение положения курсора
-    this.savedSelection = this.cloneSelection();
-  }
-  
-    
-
-  restoreSelection() { // Восстановление положения курсора
-    document.querySelector(".chat-input").focus();
-    if (this.savedSelection != null) {
-    if (window.getSelection)//non IE and there is already a selection
-      {
-        console.log('there is already a selection');
-
-        let newRange = document.createRange();
-
-        newRange.setStart(...this.savedSelection.start);
-        newRange.setEnd(...this.savedSelection.end);
-
-
-
-
-        var s = window.getSelection();
-        if (s.rangeCount > 0) 
-        s.removeAllRanges();
+  insertTextAtCaret(text) {
+    var sel, range;
+    if (window.getSelection) {
+      sel = window.getSelection();
+      if (sel.getRangeAt && sel.rangeCount) {
+        let textNode = document.createElement('span');
+        textNode.innerText = text;
         
-        console.log(this.savedSelection);
-        s.addRange(newRange);
+
+        range = sel.getRangeAt(0);
+        range.deleteContents();
+        
+        range.insertNode( textNode );
+        range.setStart(range.endContainer, range.endOffset);
+        this.formatInput({});
       }
-      else if (document.createRange)//non IE and no selection
-        {
-          console.log('no selection');
-          window.getSelection().addRange(this.savedRange);
-        }
-      else if (document.selection)//IE
-      {
-        this.savedRange.select();
-      }
+    } else if (document.selection && document.selection.createRange) {
+        document.selection.createRange().text = text;
     }
   }
-}
-
-
-function textConverter(text) {
-  text = text.replace('&', "&amp;");
-  text = text.replace('>', "&gt;");
-  text = text.replace('<', "&lt;");
-  text = text.replace('"', "&quot;");
-  text = text.replace("'", "&#039;");
-  return text;
 }
 
 
