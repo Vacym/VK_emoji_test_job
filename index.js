@@ -8,7 +8,7 @@ class EmojiContainer {
     this.emojiHistory = localStorage.getItem('emojiHistory'); // История эмодзи
     this.lastHistory  = []; // Последняя обновлённая история
 
-    this.bindDecisionToClick = this.decisionToClick.bind(this)
+    this.bindDecisionToClick = this.decisionToClick.bind(this);
 
     try {
       this.emojiHistory = JSON.parse(this.emojiHistory);
@@ -236,7 +236,7 @@ class EmojiContainer {
     this.show = false;
     this.container.classList.remove('show');
     
-    document.removeEventListener('mousedown', this.bindDecisionToClick)
+    document.removeEventListener('mousedown', this.bindDecisionToClick);
   }
 
   toggle(event) { // Переключение видимости контейнера
